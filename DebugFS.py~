@@ -22,7 +22,7 @@ class MyStat(fuse.Stat):
 		self.st_size=0
 
 def Logger(fo,content):
-	f=open("/home/$USER/","a")
+	f=open("/home/mukundan/U1/FuseFS/log","a")
 	f.write(fo+'<='+content+"\n")
 	f.close()
 
