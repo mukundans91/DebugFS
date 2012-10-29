@@ -70,6 +70,7 @@ def inspectPreviousFrames():
 class DInit:
 	def __init__(self,argv):
 		self.mountpoint=os.path.abspath(argv)
+		self.period=10
 
 	def initialize(self):
 		os.system('python DebugFS.py "'+self.mountpoint+'"')
@@ -84,6 +85,7 @@ class DInit:
 		fhandle=open(self.absfilename,"w")
 		fhandle.write(self.currentStateFrameInfo)
 		fhandle.close()
+
 
 	def closeVFS():
 		os.system("fusermount -u "+self.mountpoint)

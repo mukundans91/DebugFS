@@ -1,13 +1,16 @@
 from fuse import Fuse
 import fuse
 import os,stat,urllib,errno
-
+import time
 
 files=[]
 dirs={'/':[]}
 file_content={}
 file_mode={}
 dirpath=['/']
+dir_mode={}
+
+
 class MyStat(fuse.Stat):
 	def __init__(self):
 		self.st_mode=0
@@ -16,13 +19,15 @@ class MyStat(fuse.Stat):
 		self.st_gid=0
 		self.st_dev=0
 		self.st_ino=0
+		self.st_uid=0
+		self.st_gid=0
 		self.st_atime=0
 		self.st_ctime=0
 		self.st_mtime=0
 		self.st_size=0
 
 def Logger(fo,content):
-	f=open("/home/$USER/","a")
+	f=open("/home/mukundan/U1/FuseFS/log","a")
 	f.write(fo+'<='+content+"\n")
 	f.close()
 
@@ -31,8 +36,9 @@ class FuseFS(Fuse):
 	def  getattr(self,path):#1
 		st=MyStat()
 		if path in dirpath:
-			st.st_mode=stat.S_IFDIR | 0777
-			st.st_nlink=2
+			#st.st_mode=stat.S_IFDIR | 0777
+			#st.st_nlink=2
+			st=dir_mode[path]
 		elif path in files:
 			st=file_mode[path]
 		else:
@@ -56,13 +62,15 @@ class FuseFS(Fuse):
 		tt.append('.')
 		tt.append('..')
 		for r in tt:
-			yield fuse.Direntry(r)
+			if r[0]!='.' and r[-1]!='~':
+				yield fuse.Direntry(r)
 
 	def rmdir(self,path):#3
 		for l in files:
 			if path in l:
 				return
 		dirpath.remove(path)
+		dir_mode.pop(path)
 		dirs.pop(path)
 		folder,n=path.rsplit('/',1)
 		if folder=='':
@@ -71,11 +79,17 @@ class FuseFS(Fuse):
 		#Logger("rmdir",(str(dirs)))
 
 	def chmod(self,path,mode):#4
-		global file_mode
-		st=file_mode[path]
-		st.st_mode=stat.S_IFREG|mode
-		file_mode[path]=st
-		#Logger("chmod",str(file_mode[path].st_mode))
+		global file_mode,dir_mode
+		if path in file_mode:
+			st=file_mode[path]
+			st.st_mode=stat.S_IFREG|mode
+			file_mode[path]=st
+			#Logger("chmod file",str(file_mode[path].st_mode))
+		elif path in dir_mode:
+			st=dir_mode[path]
+			st.st_mode=stat.S_IFDIR|mode
+			dir_mode[path]=st
+			#Logger("chmod dir",str(dir_mode[path].st_mode))
 
 	def mkdir(self,path,mode):#5
 		folder,name=path.rsplit('/',1)
@@ -85,7 +99,14 @@ class FuseFS(Fuse):
 		dirpath.append(path)
 		dirs[folder].append(path)
 		dirs[path]=[]
-		Logger("mkdir",str(dirs)+"\n"+str(dirpath))
+		st=MyStat()
+		st.st_mode=stat.S_IFDIR|mode
+		now=time.time()
+		st.st_atime=now
+		st.st_mtime=now
+		st.st_ctime=now
+		dir_mode[path]=st
+		#Logger("mkdir",str(dirs)+"\n"+str(dirpath))
 
 	def rename(self,old,new):#6
 		if old in files:
@@ -113,14 +134,17 @@ class FuseFS(Fuse):
 
 	def mknod(self,path,mode,dev):#7
 		global files,file_content,file_mode
-		if path not in files:
-			files.append(path)
-			st=MyStat()
-			st.st_mode=stat.S_IFREG | mode
-			st.st_nlink=1
-			file_mode[path]=st
-			file_content[path]=''
-			#Logger('mknod',str(files)+"\n"+str(file_content)+"\n")
+		now=time.time()
+		files.append(path)
+		st=MyStat()
+		st.st_mode=stat.S_IFREG | mode
+		st.st_nlink=1
+		st.st_ctime=now
+		st.st_atime=now
+		st.st_mtime=now
+		file_mode[path]=st
+		file_content[path]=''
+		#Logger('mknod',str(files)+"\n"+str(file_content)+"\n")
 		return 0
 
 	def read(self, path, size, offset):#8
@@ -153,6 +177,48 @@ class FuseFS(Fuse):
 		if path in files:
 			file_mode[path].st_size=length
 		#Logger("truncate","path: "+path+" Size: "+length)
+
+	
+	def utimens(self,path,times=None):#12		#set time of append and modification
+		try:
+			now=time.time()
+			now1=time.time()
+			atime,mtime=(now,now1)
+			st=file_mode[path]
+			st.st_atime=atime
+			st.st_mtime=mtime
+			file_mode[path]=st
+			return 0
+			#Logger('utimens',str(st))
+		except TypeError:
+			return self.utime(path,times)
+
+	def chown(self,path,uid,gid):#13		#Change ownership of directory
+		global file_mode,dir_mode
+		if path in file_mode:
+			st=file_mode[path]
+			st.st_uid=uid
+			st.st_gid=gid
+			file_mode[path]=st
+			#Logger('chown file',str(st))
+		elif path in dir_mode:
+			st=dir_mode[path]
+			st.st_uid=uid
+			st.st_gid=gid
+			dir_mode[path]=st
+			#Logger('chown dir',str(st))
+
+
+	def utime(self,path,times=None):#14		#set time of append and modification
+		now=time.time()
+		now1=time.time()
+		atime,mtime=(now,now1)
+		st=file_mode[path]
+		st.st_atime=atime
+		st.st_mtime=mtime
+		file_mode[path]=st
+		return 0
+		#Logger('utime',str(st))
 
 fuse.fuse_python_api=(0,2)
 

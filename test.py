@@ -10,3 +10,7 @@ def ggg(a,b=4):
 	bbb='p'
 
 server.writeCurrentState()
+
+a=raw_input("Enter a:")
+
+server.writeCurrentState()
